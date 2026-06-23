@@ -1,6 +1,5 @@
 const BOT_TOKEN = process.env["BOT_TOKEN"];
-const OLLAMA_URL = process.env["OLLAMA_URL"] ?? "http://localhost:11434";
-const OLLAMA_MODEL = process.env["OLLAMA_MODEL"] ?? "maternion/LightOnOCR-2";
+const RAPIDOCR_URL = process.env["RAPIDOCR_URL"] ?? "http://localhost:8001";
 
 if (!BOT_TOKEN) {
   console.error("BOT_TOKEN is required");
@@ -45,35 +44,21 @@ async function sendMessage(chatId: number, text: string): Promise<void> {
 }
 
 async function ocrImage(base64: string): Promise<string> {
-  const payload = Buffer.from(
-    JSON.stringify({
-      model: OLLAMA_MODEL,
-      prompt:
-        "Extract all text from this image. Return only the extracted text, nothing else.",
-      images: [base64],
-      stream: false,
-    }),
-    "utf-8"
-  );
-  const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+  const res = await fetch(`${RAPIDOCR_URL}/ocr`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(5 * 60 * 1000),
-    body: payload,
+    signal: AbortSignal.timeout(60_000),
+    body: JSON.stringify({ image: base64 }),
   });
-
-  if (!res.ok) {
-    throw new Error(`Ollama error: ${res.status} ${await res.text()}`);
-  }
-
-  const data = (await res.json()) as { response: string };
-  return data.response.trim();
+  if (!res.ok) throw new Error(`RapidOCR error: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as { text: string };
+  return data.text.trim();
 }
 
 async function poll() {
   let offset = 0;
   console.log(`Polling for updates...`);
-  console.log(`Model: ${OLLAMA_MODEL} @ ${OLLAMA_URL}`);
+  console.log(`RapidOCR service: ${RAPIDOCR_URL}`);
 
   while (true) {
     let data: { result: TelegramUpdate[] };

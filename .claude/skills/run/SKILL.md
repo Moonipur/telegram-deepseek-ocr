@@ -1,12 +1,12 @@
 ---
-description: Launch and validate the telegram-orc bot via docker compose (type-check, Ollama model pull, compose up, live log check)
+description: Launch and validate the telegram-orc bot via docker compose (type-check, compose up, live log check)
 ---
 
 # Run & Validate — telegram-orc
 
 This app runs exclusively via `docker compose`. The compose file starts two services:
-- **ollama** — vision model backend (port 11434)
-- **app** — Bun/TypeScript bot that polls Telegram and calls Ollama
+- **rapidocr** — Python/Flask OCR sidecar using `rapidocr-onnxruntime` (port 8001)
+- **app** — Bun/TypeScript bot that polls Telegram and calls RapidOCR
 
 Environment is loaded from `.env` at the project root (must contain at least `BOT_TOKEN`).
 
@@ -27,8 +27,8 @@ Success: exits 0, no output.
 grep -q BOT_TOKEN .env && echo "OK" || echo "MISSING .env / BOT_TOKEN"
 ```
 
-The compose file passes `BOT_TOKEN`, `OLLAMA_MODEL`, `OLLAMA_URL`, and `PORT` from `.env`.
-`OLLAMA_URL` inside the stack is always `http://ollama:11434` (set in compose) — do not rely on the value in `.env` for in-container connectivity.
+The compose file passes `BOT_TOKEN`, `RAPIDOCR_URL`, and `PORT` from `.env`.
+`RAPIDOCR_URL` inside the stack is always `http://rapidocr:8001` (set in compose).
 
 ### 3. Start the stack
 
@@ -36,22 +36,15 @@ The compose file passes `BOT_TOKEN`, `OLLAMA_MODEL`, `OLLAMA_URL`, and `PORT` fr
 docker compose up -d --build
 ```
 
-This builds the `app` image and starts both services. On first run the `ollama` container starts empty — the model must be pulled (step 4).
+Builds both images and starts both services. No model pull needed — RapidOCR bundles its ONNX models.
 
-### 4. Pull the model into the Ollama container
-
-```bash
-source .env
-docker compose exec ollama ollama pull "${OLLAMA_MODEL:-moondream:1.8b-v2-q8_0}"
-```
-
-Wait until the pull completes. Confirm:
+### 4. Verify both services are running
 
 ```bash
-docker compose exec ollama ollama list
+docker compose ps
 ```
 
-The configured model must appear in the list.
+Both `rapidocr` and `app` should show status `Up`.
 
 ### 5. Verify the app started cleanly
 
@@ -59,34 +52,30 @@ The configured model must appear in the list.
 docker compose logs app
 ```
 
-Expected output within a few seconds of step 3:
+Expected output:
 ```
 Polling for updates...
-Model: <OLLAMA_MODEL> @ http://ollama:11434
+RapidOCR service: http://rapidocr:8001
 ```
 
-If the app crashed before the model was ready (step 4), restart it:
+If the app crashed before `rapidocr` was ready, restart it:
 
 ```bash
 docker compose restart app
 docker compose logs -f app
 ```
 
-### 6. OCR smoke-test inside the Ollama container
+### 6. OCR smoke-test against the rapidocr sidecar
 
 ```bash
-source .env
-docker compose exec ollama sh -c "
-  MODEL=${OLLAMA_MODEL:-moondream:1.8b-v2-q8_0}
-  JPEG_B64='/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AJQAB/9k='
-  curl -sf http://localhost:11434/api/generate \
-    -X POST -H 'Content-Type: application/json' \
-    -d \"{\\\"model\\\":\\\"$MODEL\\\",\\\"prompt\\\":\\\"Extract text\\\",\\\"images\\\":[\\\"$JPEG_B64\\\"],\\\"stream\\\":false}\" \
-    | grep -o '\"response\":\"[^\"]*\"'
+docker compose exec rapidocr python -c "
+from rapidocr_onnxruntime import RapidOCR
+engine = RapidOCR()
+print('RapidOCR OK')
 "
 ```
 
-Success: prints `"response":"..."` (content may be empty for a blank image — that is fine).
+Success: prints `RapidOCR OK` with no errors.
 
 ### 7. Live test
 
@@ -110,10 +99,10 @@ Processing image...
 ```bash
 docker compose ps                    # service status
 docker compose logs -f app           # live app logs
-docker compose logs ollama           # ollama logs
-docker compose restart app           # restart bot only (model stays loaded)
+docker compose logs rapidocr         # rapidocr sidecar logs
+docker compose restart app           # restart bot only
 docker compose down                  # stop everything
-docker compose down -v               # stop + delete ollama_data volume (model deleted)
+docker compose up -d --build         # rebuild and restart
 ```
 
 ## Troubleshooting
@@ -121,7 +110,6 @@ docker compose down -v               # stop + delete ollama_data volume (model d
 | Symptom | Cause | Fix |
 |---|---|---|
 | `BOT_TOKEN is required` | `.env` missing or not sourced into compose | Ensure `.env` exists with `BOT_TOKEN=…` |
-| `Ollama error: 500 {"error":"invalid character…"}` | Body encoding bug | Confirm `Buffer.from(…, "utf-8")` fix is in `src/index.ts` |
-| `app` exits immediately | Ollama not yet ready or model missing | Pull model (step 4) then `docker compose restart app` |
-| Model missing from `ollama list` | Not pulled | Run step 4 |
-| `docker compose exec ollama ollama` — exec fails | Ollama container not running | `docker compose up -d ollama` first |
+| `app` exits immediately | `rapidocr` sidecar not ready | `docker compose restart app` after sidecar is up |
+| `RapidOCR error: 500` | Python crash in sidecar | Check `docker compose logs rapidocr` |
+| OCR returns empty string | Image unreadable or no text detected | Expected behaviour for blank/unclear images |

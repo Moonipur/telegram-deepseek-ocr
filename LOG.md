@@ -15,3 +15,5 @@
 [2026-06-22] Changed default port from 3000 to 8000 — .env.example, docker-compose.yml, INDEX.md
 [2026-06-23] Changed OLLAMA_MODEL from deepseek-ocr to maternion/LightOnOCR-2 — src/index.ts, .env, .env.example, INDEX.md
 [2026-06-23] Added 40s AbortSignal.timeout to getUpdates fetch; loop continues on AbortError instead of hanging — src/index.ts
+[2026-06-23] Replaced Ollama OCR backend with RapidOCR Python sidecar (rapidocr-onnxruntime, CPU-only); added rapidocr_service/; updated docker-compose.yml to remove ollama service; updated src/index.ts ocrImage to POST to RAPIDOCR_URL/ocr — rapidocr_service/main.py, rapidocr_service/Dockerfile, docker-compose.yml, src/index.ts, INDEX.md
+[2026-06-23] Fixed missing spaces in OCR output: group boxes by vertical position and join same-line words with spaces instead of newlines — rapidocr_service/main.py
