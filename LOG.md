@@ -13,3 +13,5 @@
 [2026-06-22] Added debug log for incoming update keys; fixed document image support (was only handling photo[], now also handles document with image/* mime_type) — src/index.ts
 [2026-06-22] Switched OLLAMA_MODEL from moondream:1.8b-v2-q8_0 to deepseek-ocr (moondream is a description model, not OCR) — .env
 [2026-06-22] Changed default port from 3000 to 8000 — .env.example, docker-compose.yml, INDEX.md
+[2026-06-23] Changed OLLAMA_MODEL from deepseek-ocr to maternion/LightOnOCR-2 — src/index.ts, .env, .env.example, INDEX.md
+[2026-06-23] Added 40s AbortSignal.timeout to getUpdates fetch; loop continues on AbortError instead of hanging — src/index.ts

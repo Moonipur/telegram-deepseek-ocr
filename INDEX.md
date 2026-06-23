@@ -31,7 +31,7 @@ telegram-orc/
 |---------------|----------|----------------------------|-------------------------------------|
 | `BOT_TOKEN`   | yes      | —                          | Telegram bot token from BotFather   |
 | `OLLAMA_URL`  | no       | `http://localhost:11434`   | Ollama API base URL                 |
-| `OLLAMA_MODEL`| no       | `deepseek-ocr`             | Ollama model name for vision/OCR    |
+| `OLLAMA_MODEL`| no       | `maternion/LightOnOCR-2`   | Ollama model name for vision/OCR    |
 | `PORT`        | no       | `8000`                     | Port for the webhook server         |
 
 ## How to Run
@@ -49,4 +49,4 @@ telegram-orc/
 ## Key Decisions
 
 - Telegram sends photos in ascending size order; the last element is always the largest — that's what we download.
-- Model name "deepseek-ocr" may need to be verified with `ollama list`; swap via `OLLAMA_MODEL` env var.
+- Model name "maternion/LightOnOCR-2" may need to be verified with `ollama list`; swap via `OLLAMA_MODEL` env var.

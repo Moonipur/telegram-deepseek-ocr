@@ -1,6 +1,6 @@
 const BOT_TOKEN = process.env["BOT_TOKEN"];
 const OLLAMA_URL = process.env["OLLAMA_URL"] ?? "http://localhost:11434";
-const OLLAMA_MODEL = process.env["OLLAMA_MODEL"] ?? "deepseek-ocr";
+const OLLAMA_MODEL = process.env["OLLAMA_MODEL"] ?? "maternion/LightOnOCR-2";
 
 if (!BOT_TOKEN) {
   console.error("BOT_TOKEN is required");
@@ -76,10 +76,20 @@ async function poll() {
   console.log(`Model: ${OLLAMA_MODEL} @ ${OLLAMA_URL}`);
 
   while (true) {
-    const res = await fetch(
-      `${TELEGRAM_API}/getUpdates?offset=${offset}&timeout=30`
-    );
-    const data = (await res.json()) as { result: TelegramUpdate[] };
+    let data: { result: TelegramUpdate[] };
+    try {
+      const res = await fetch(
+        `${TELEGRAM_API}/getUpdates?offset=${offset}&timeout=30`,
+        { signal: AbortSignal.timeout(40_000) }
+      );
+      data = (await res.json()) as { result: TelegramUpdate[] };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        console.warn("getUpdates timed out, retrying...");
+        continue;
+      }
+      throw err;
+    }
 
     for (const update of data.result) {
       offset = update.update_id + 1;
